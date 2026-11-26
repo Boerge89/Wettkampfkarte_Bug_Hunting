@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Java Bug Hunting: Wettkampfkarte</title>
+    <style>
+        :root {
+            --bg-app: #0d1117;
+            --bg-panel: #161b22;
+            --bg-editor: #1e1e1e;
+            --bg-editor-header: #252526;
+            --bg-hover: #2a2d2e;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-muted: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-purple: #bc8cff;
+            --accent-green: #3fb950;
+            --accent-green-bg: rgba(46, 160, 67, 0.16);
+            --accent-red: #f85149;
+            --accent-red-bg: rgba(248, 81, 73, 0.16);
+            --accent-amber: #d29922;
+            --accent-amber-bg: rgba(210, 153, 34, 0.18);
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "Fira Code", "JetBrains Mono", "Cascadia Code", Consolas, "Courier New", monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-app);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.5;
+            overflow-x: hidden;
+        }
+
+        /* Header & Tracker */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            background-color: rgba(22, 27, 34, 0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+        }
+
+        .header-inner {
+            max-width: 1120px;
+            margin: 0 auto;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.85rem;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+        }
+
+        .brand h1 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.01em;
+        }
+
+        .brand p {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        .brand code {
+            font-family: var(--font-mono);
+            color: #fbbf24;
+        }
+
+        /* Tracker-Karte im Header */
+        .tracker-box {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background-color: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.5rem 0.9rem;
+            flex-wrap: wrap;
+        }
+
+        .tracker-progress-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            min-width: 170px;
+        }
+
+        .tracker-top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.8rem;
+        }
+
+        .tracker-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .tracker-count {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--accent-green);
+            font-size: 0.88rem;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 7px;
+            background-color: #21262d;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #3b82f6, #a855f7, #3fb950);
+            border-radius: 999px;
+            transition: width 0.4s ease;
+        }
+
+        /* 8 Status-Pills */
+        .bug-pills {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .bug-pill {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 6px;
+            background-color: #21262d;
+            color: var(--text-muted);
+            border: 1px solid #30363d;
+            transition: all 0.25s ease;
+        }
+
+        .bug-pill.solved {
+            background-color: var(--accent-green-bg);
+            color: var(--accent-green);
+            border-color: rgba(63, 185, 80, 0.45);
+        }
+
+        .divider-v {
+            width: 1px;
+            height: 28px;
+            background-color: var(--border-color);
+        }
+
+        .timer-box {
+            text-align: right;
+            min-width: 54px;
+        }
+
+        .timer-label {
+            display: block;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+        }
+
+        .timer-value {
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        /* Header Buttons */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            font-family: var(--font-sans);
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.52rem 0.85rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.1s ease;
+            user-select: none;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-hint {
+            background-color: var(--accent-amber-bg);
+            color: #fbbf24;
+            border-color: rgba(210, 153, 34, 0.45);
+        }
+
+        .btn-hint:hover {
+            background-color: rgba(210, 153, 34, 0.28);
+        }
+
+        .btn-secondary {
+            background-color: #21262d;
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background-color: #30363d;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2563eb, #10b981);
+            color: #ffffff;
+            border: none;
+            padding: 0.6rem 1.1rem;
+        }
+
+        .btn-primary:hover {
+            filter: brightness(1.08);
+        }
+
+        /* Main Container */
+        main {
+            max-width: 1120px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 1.25rem 1rem 2.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+            flex: 1;
+        }
+
+        .info-bar {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.85rem 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            font-size: 0.86rem;
+            color: #c9d1d9;
+        }
+
+        .info-bar code {
+            font-family: var(--font-mono);
+            color: #fbbf24;
+        }
+
+        .mistakes-badge {
+            font-size: 0.8rem;
+            background-color: #0d1117;
+            border: 1px solid var(--border-color);
+            padding: 0.35rem 0.7rem;
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+
+        .mistakes-badge span {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--accent-red);
+        }
+
+        /* Tipp-Banner */
+        .hint-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            background-color: var(--accent-amber-bg);
+            border: 1px solid rgba(210, 153, 34, 0.5);
+            color: #fde68a;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            font-size: 0.86rem;
+        }
+
+        .hint-banner.visible {
+            display: flex;
+        }
+
+        .hint-close {
+            background: none;
+            border: none;
+            color: #fbbf24;
+            font-weight: 600;
+            font-size: 0.8rem;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+        }
+
+        /* VS-Code-Stil Editor */
+        .editor-window {
+            background-color: var(--bg-editor);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+        }
+
+        .editor-titlebar {
+            background-color: var(--bg-editor-header);
+            border-bottom: 1px solid #121212;
+            padding: 0.6rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .window-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .dot-red { background-color: #ff5f56; }
+        .dot-yellow { background-color: #ffbd2e; }
+        .dot-green { background-color: #27c93f; }
+
+        .editor-tab {
+            margin-left: 0.65rem;
+            background-color: var(--bg-editor);
+            border: 1px solid #333333;
+            border-radius: 8px;
+            padding: 0.25rem 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: #d4d4d4;
+        }
+
+        .java-icon {
+            color: #f59e0b;
+            font-weight: 800;
+        }
+
+        .compiler-status {
+            font-family: var(--font-sans);
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 6px;
+            background-color: var(--accent-red-bg);
+            color: #fca5a5;
+            border: 1px solid rgba(248, 81, 73, 0.35);
+        }
+
+        .compiler-status.clean {
+            background-color: var(--accent-green-bg);
+            color: #86efac;
+            border-color: rgba(63, 185, 80, 0.4);
+        }
+
+        .editor-hint-label {
+            font-size: 0.76rem;
+            color: #858585;
+        }
+
+        .editor-body {
+            padding: 0.65rem 0;
+            overflow-x: auto;
+        }
+
+        .code-row {
+            display: flex;
+            align-items: center;
+            padding: 2px 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.86rem;
+            line-height: 1.55;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: background-color 0.12s ease;
+            min-width: max-content;
+        }
+
+        .code-row:hover {
+            background-color: var(--bg-hover);
+        }
+
+        .line-number {
+            width: 2.5rem;
+            text-align: right;
+            padding-right: 1rem;
+            color: #6e7681;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .code-row:hover .line-number {
+            color: #c9d1d9;
+        }
+
+        .code-content {
+            white-space: pre;
+            color: #d4d4d4;
+            flex: 1;
+        }
+
+        /* Syntax Highlighting Tokens */
+        .tok-kw { color: #c586c0; font-weight: 500; }
+        .tok-type { color: #4ec9b0; }
+        .tok-str { color: #ce9178; }
+        .tok-num { color: #b5cea8; }
+        .tok-com { color: #6a9955; font-style: italic; }
+        .tok-const { color: #4fc1ff; }
+        .tok-placeholder { color: #9cdcfe; font-style: italic; opacity: 0.9; }
+
+        /* Zustände der Codezeilen */
+        .code-row.fixed {
+            background-color: var(--accent-green-bg);
+            border-left-color: var(--accent-green);
+        }
+
+        .code-row.hinted {
+            background-color: var(--accent-amber-bg);
+            border-left-color: #fbbf24;
+            animation: pulseHint 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulseHint {
+            0%, 100% { background-color: rgba(210, 153, 34, 0.14); }
+            50% { background-color: rgba(210, 153, 34, 0.28); }
+        }
+
+        @keyframes shakeRow {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); background-color: var(--accent-red-bg); }
+            40% { transform: translateX(6px); background-color: var(--accent-red-bg); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+
+        .code-row.shake {
+            animation: shakeRow 0.4s ease-in-out;
+        }
+
+        .fixed-badge {
+            margin-left: 1rem;
+            font-family: var(--font-sans);
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 1px 8px;
+            border-radius: 6px;
+            background-color: rgba(63, 185, 80, 0.22);
+            color: #86efac;
+            border: 1px solid rgba(63, 185, 80, 0.4);
+            white-space: nowrap;
+        }
+
+        /* Toast Benachrichtigungen */
+        .toast-container {
+            position: fixed;
+            bottom: 1.25rem;
+            right: 1.25rem;
+            z-index: 45;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-width: 340px;
+            pointer-events: none;
+        }
+
+        .toast {
+            padding: 0.7rem 0.95rem;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--border-color);
+            background-color: #161b22;
+            color: var(--text-main);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        .toast.info {
+            border-color: rgba(88, 166, 255, 0.45);
+            background-color: #13233a;
+            color: #bfdbfe;
+        }
+
+        .toast.success {
+            border-color: rgba(63, 185, 80, 0.5);
+            background-color: #122b1d;
+            color: #bbf7d0;
+        }
+
+        /* Modale Dialoge */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            background-color: rgba(1, 4, 9, 0.78);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+        .modal-card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            max-width: 660px;
+            width: 100%;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            margin: auto;
+        }
+
+        .modal-header {
+            padding: 1rem 1.25rem;
+            background-color: #1c2128;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .modal-title-group {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            flex-wrap: wrap;
+        }
+
+        .bug-tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background-color: var(--accent-red-bg);
+            color: #fca5a5;
+            border: 1px solid rgba(248, 81, 73, 0.4);
+        }
+
+        .modal-header h2 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .modal-close-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.25rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+        }
+
+        .modal-close-btn:hover {
+            background-color: #30363d;
+            color: #ffffff;
+        }
+
+        .modal-body {
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .compiler-error-box {
+            background-color: #0d1117;
+            border: 1px solid rgba(248, 81, 73, 0.35);
+            border-left: 3px solid var(--accent-red);
+            border-radius: 10px;
+            padding: 0.75rem 0.95rem;
+        }
+
+        .compiler-error-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #fca5a5;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .compiler-error-msg {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: #f85149;
+            margin-bottom: 0.45rem;
+        }
+
+        .buggy-line-preview {
+            font-family: var(--font-mono);
+            font-size: 0.84rem;
+            color: #e6edf3;
+            background-color: #161b22;
+            padding: 0.45rem 0.65rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        .options-label {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.55rem;
+        }
+
+        .option-btn {
+            width: 100%;
+            text-align: left;
+            background-color: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.7rem 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+
+        .option-btn:hover:not(:disabled) {
+            border-color: var(--accent-blue);
+            background-color: #161b22;
+        }
+
+        .option-btn:disabled {
+            cursor: default;
+        }
+
+        .option-btn.correct {
+            border-color: var(--accent-green);
+            background-color: var(--accent-green-bg);
+        }
+
+        .option-btn.wrong {
+            border-color: var(--accent-red);
+            background-color: var(--accent-red-bg);
+        }
+
+        .option-letter {
+            width: 26px;
+            height: 26px;
+            border-radius: 7px;
+            background-color: #21262d;
+            color: var(--text-main);
+            font-weight: 700;
+            font-size: 0.78rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .option-btn.correct .option-letter {
+            background-color: var(--accent-green);
+            color: #0d1117;
+        }
+
+        .option-btn.wrong .option-letter {
+            background-color: var(--accent-red);
+            color: #ffffff;
+        }
+
+        .option-code {
+            font-family: var(--font-mono);
+            font-size: 0.84rem;
+            color: #e6edf3;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .modal-feedback {
+            display: none;
+            padding: 0.8rem 0.95rem;
+            border-radius: 10px;
+            font-size: 0.84rem;
+            line-height: 1.45;
+        }
+
+        .modal-feedback.visible {
+            display: block;
+        }
+
+        .modal-feedback.success {
+            background-color: var(--accent-green-bg);
+            border: 1px solid rgba(63, 185, 80, 0.45);
+            color: #bbf7d0;
+        }
+
+        .modal-feedback.error {
+            background-color: var(--accent-red-bg);
+            border: 1px solid rgba(248, 81, 73, 0.45);
+            color: #fecaca;
+        }
+
+        .modal-footer {
+            padding: 0.85rem 1.25rem;
+            background-color: #1c2128;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.6rem;
+        }
+
+        /* Sieges-Modal */
+        .victory-banner {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.2), rgba(16, 185, 129, 0.2));
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem 1.25rem;
+            text-align: center;
+        }
+
+        .trophy-badge {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 0.75rem;
+            border-radius: 14px;
+            background-color: rgba(63, 185, 80, 0.2);
+            border: 1px solid rgba(63, 185, 80, 0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+        }
+
+        .victory-banner h2 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 0.35rem;
+        }
+
+        .victory-banner p {
+            font-size: 0.88rem;
+            color: #c9d1d9;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.65rem;
+            max-width: 440px;
+            margin: 1.1rem auto 0;
+        }
+
+        .stat-card {
+            background-color: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.6rem;
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .stat-val {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .summary-list {
+            max-height: 240px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .summary-item {
+            background-color: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 9px;
+            padding: 0.6rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        .summary-item-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+            flex-wrap: wrap;
+        }
+
+        .summary-item-title {
+            font-weight: 700;
+            color: var(--accent-green);
+        }
+
+        .summary-item-code {
+            font-family: var(--font-mono);
+            font-size: 0.76rem;
+            background-color: #161b22;
+            padding: 2px 6px;
+            border-radius: 5px;
+            color: #e6edf3;
+        }
+
+        @media (max-width: 680px) {
+            .editor-hint-label {
+                display: none;
+            }
+            .divider-v {
+                display: none;
+            }
+            .tracker-box {
+                width: 100%;
+                justify-content: space-between;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-inner">
+            <div class="brand">
+                <div class="brand-icon" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 2l1.88 1.88"></path>
+                        <path d="M14.12 3.88L16 2"></path>
+                        <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path>
+                        <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"></path>
+                        <path d="M12 20v-9"></path>
+                        <path d="M6.53 9C4.6 8.8 3 7.1 3 5"></path>
+                        <path d="M6 13H2"></path>
+                        <path d="M3 21c0-2.1 1.7-3.9 3.8-4"></path>
+                        <path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"></path>
+                        <path d="M22 13h-4"></path>
+                        <path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1>Java Bug Hunting: Wettkampfkarte</h1>
+                    <p>Quelltextanalyse &bull; <code>Wettkampfkarte.java</code></p>
+                </div>
+            </div>
+
+            <div class="tracker-box">
+                <div class="tracker-progress-group">
+                    <div class="tracker-top-row">
+                        <span class="tracker-label">Gefundene Bugs:</span>
+                        <span id="tracker-count" class="tracker-count">0 / 8</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                </div>
+
+                <div id="bug-pills" class="bug-pills" aria-label="Status der 8 Bugs"></div>
+
+                <div class="divider-v"></div>
+
+                <div class="timer-box">
+                    <span class="timer-label">Zeit</span>
+                    <span id="timer-value" class="timer-value">00:00</span>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <button id="btn-hint" type="button" class="btn btn-hint">💡 Tipp anzeigen</button>
+                <button id="btn-restart" type="button" class="btn btn-secondary">↻ Neustart</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="info-bar">
+            <div>
+                <strong>Aufgabe:</strong> Im Quelltext der Klasse <code>Wettkampfkarte</code> sind genau <strong>8 syntaktische Fehler</strong> versteckt. Klicke auf die fehlerhaften Zeilen (oder auf die Platzhalter-Zeilen am Ende) und behebe alle Compilerfehler!
+            </div>
+            <div class="mistakes-badge">
+                Fehlversuche: <span id="mistakes-count">0</span>
+            </div>
+        </div>
+
+        <div id="hint-banner" class="hint-banner" role="status">
+            <span id="hint-text"></span>
+            <button id="btn-close-hint" type="button" class="hint-close">Ausblenden</button>
+        </div>
+
+        <section class="editor-window" aria-label="Java Code Editor">
+            <div class="editor-titlebar">
+                <div class="window-controls">
+                    <span class="dot dot-red"></span>
+                    <span class="dot dot-yellow"></span>
+                    <span class="dot dot-green"></span>
+                    <div class="editor-tab">
+                        <span class="java-icon">J</span>
+                        <span>Wettkampfkarte.java</span>
+                        <span id="compiler-status" class="compiler-status">8 Compilerfehler</span>
+                    </div>
+                </div>
+                <span class="editor-hint-label">Zeile anklicken zum Untersuchen</span>
+            </div>
+            <div id="editor-body" class="editor-body"></div>
+        </section>
+    </main>
+
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Modal zur Fehlerkorrektur -->
+    <div id="bug-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-heading">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <span id="modal-bug-tag" class="bug-tag">Bug #1 &bull; Zeile 2</span>
+                    <h2 id="modal-heading">Syntaktischen Fehler korrigieren</h2>
+                </div>
+                <button id="btn-modal-close" type="button" class="modal-close-btn" aria-label="Schließen">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="compiler-error-box">
+                    <div class="compiler-error-label">Java-Compiler Meldung</div>
+                    <div id="modal-compiler-msg" class="compiler-error-msg"></div>
+                    <div id="modal-buggy-preview" class="buggy-line-preview"></div>
+                </div>
+
+                <div>
+                    <p class="options-label" style="margin-bottom: 0.55rem;">Wähle die korrekte Codezeile aus:</p>
+                    <div id="modal-options" class="options-list"></div>
+                </div>
+
+                <div id="modal-feedback" class="modal-feedback"></div>
+            </div>
+            <div id="modal-footer" class="modal-footer">
+                <button id="btn-modal-cancel" type="button" class="btn btn-secondary">Abbrechen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sieges-Modal -->
+    <div id="victory-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="victory-heading">
+        <div class="modal-card">
+            <div class="victory-banner">
+                <div class="trophy-badge">🏆</div>
+                <h2 id="victory-heading">Glückwunsch! Alle 8 Bugs behoben!</h2>
+                <p>Die Klasse <strong>Wettkampfkarte.java</strong> ist jetzt syntaktisch einwandfrei und kompilierbar.</p>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Gefundene Bugs</span>
+                        <span class="stat-val">8 / 8</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Benötigte Zeit</span>
+                        <span id="victory-time" class="stat-val" style="color: #58a6ff;">00:00</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Fehlversuche</span>
+                        <span id="victory-mistakes" class="stat-val" style="color: #fbbf24;">0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-body">
+                <p class="options-label">Übersicht aller 8 korrigierten Fehler:</p>
+                <div id="victory-summary" class="summary-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-victory-view" type="button" class="btn btn-secondary">Code ansehen</button>
+                <button id="btn-victory-restart" type="button" class="btn btn-primary">Nochmal spielen</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            "use strict";
+
+            // Exakter Java-Quelltext über 89 Zeilen mit den 8 vorgegebenen syntaktischen Fehlern
+            const INITIAL_LINES = [
+                { line: 1, code: "public class Wettkampfkarte {" },
+                {
+                    line: 2,
+                    code: "    public static final int LAUF = 1, SPRUNG = 2, WURF = 3, GESAMT = 4",
+                    bug: {
+                        id: 1,
+                        compilerMsg: "Wettkampfkarte.java:2: error: ';' expected",
+                        hint: "Schau dir das Ende der Konstantendeklaration in Zeile 2 genau an.",
+                        explanation: "In Java muss jede Variablendeklaration und Anweisung mit einem Semikolon (;) abgeschlossen werden.",
+                        fixedCode: "    public static final int LAUF = 1, SPRUNG = 2, WURF = 3, GESAMT = 4;",
+                        options: [
+                            {
+                                code: "    public static final int LAUF = 1, SPRUNG = 2, WURF = 3, GESAMT = 4;",
+                                correct: true,
+                                feedback: "Richtig! Das fehlende Semikolon (;) am Ende der Konstantendeklaration wurde ergänzt."
+                            },
+                            {
+                                code: "    public static final int LAUF = 1; SPRUNG = 2; WURF = 3; GESAMT = 4;",
+                                correct: false,
+                                feedback: "Nicht ganz: Durch Semikolons zwischen den Konstanten würde für SPRUNG, WURF und GESAMT der Datentyp 'int' fehlen."
+                            },
+                            {
+                                code: "    public static final int LAUF = 1, SPRUNG = 2, WURF = 3, GESAMT = 4:",
+                                correct: false,
+                                feedback: "Ein Doppelpunkt (:) wird bei switch-Marken verwendet, nicht am Ende einer Deklaration."
+                            }
+                        ]
+                    }
+                },
+                { line: 3, code: "    private String name, vorname, klasse;" },
+                { line: 4, code: "    private int punkteLauf, punkteSprung, punkteWurf;" },
+                { line: 5, code: "" },
+                { line: 6, code: "    /**" },
+                { line: 7, code: "     * Die Wettkampfkarte wurde mit den angegebenen Daten initialisiert. Alle" },
+                { line: 8, code: "     * Punktzahlen sind 0." },
+                { line: 9, code: "     */" },
+                { line: 10, code: "    public Wettkampfkarte(String pName, String pVorname, String pKlasse) {" },
+                { line: 11, code: "        name = pName;" },
+                { line: 12, code: "        vorname = pVorname;" },
+                {
+                    line: 13,
+                    code: "        klasse = pKlasse",
+                    bug: {
+                        id: 2,
+                        compilerMsg: "Wettkampfkarte.java:13: error: ';' expected",
+                        hint: "Überprüfe die Wertzuweisungen im ersten Konstruktor (Zeile 11–16).",
+                        explanation: "Auch nach der Zuweisung 'klasse = pKlasse' verlangt der Java-Compiler zwingend ein Semikolon (;).",
+                        fixedCode: "        klasse = pKlasse;",
+                        options: [
+                            {
+                                code: "        klasse = pKlasse;",
+                                correct: true,
+                                feedback: "Perfekt! Mit dem Semikolon (;) ist die Zuweisung syntaktisch vollständig."
+                            },
+                            {
+                                code: "        klasse == pKlasse;",
+                                correct: false,
+                                feedback: "'==' ist der Vergleichsoperator, nicht der Zuweisungsoperator '='."
+                            },
+                            {
+                                code: "        String klasse = pKlasse;",
+                                correct: false,
+                                feedback: "Damit würdest du eine neue lokale Variable anlegen, statt das Klassenattribut 'klasse' zu belegen."
+                            }
+                        ]
+                    }
+                },
+                { line: 14, code: "        punkteLauf = 0;" },
+                { line: 15, code: "        punkteSprung = 0;" },
+                { line: 16, code: "        punkteWurf = 0;" },
+                { line: 17, code: "    }" },
+                { line: 18, code: "" },
+                { line: 19, code: "    public Wettkampfkarte(String zeile) {" },
+                { line: 20, code: "        String[] teile = zeile.split(\",\");" },
+                { line: 21, code: "        name = teile[0];" },
+                { line: 22, code: "        vorname = teile[1];" },
+                {
+                    line: 23,
+                    code: "        klasse = teile[2;",
+                    bug: {
+                        id: 3,
+                        compilerMsg: "Wettkampfkarte.java:23: error: ']' expected",
+                        hint: "Schau dir den Array-Zugriff im zweiten Konstruktor genau an.",
+                        explanation: "Beim Zugriff auf das Array 'teile' wurde die eckige Klammer geöffnet, aber nicht wieder mit ']' geschlossen.",
+                        fixedCode: "        klasse = teile[2];",
+                        options: [
+                            {
+                                code: "        klasse = teile[2];",
+                                correct: true,
+                                feedback: "Richtig! Die schließende eckige Klammer ']' schließt den Array-Index korrekt ab."
+                            },
+                            {
+                                code: "        klasse = teile(2);",
+                                correct: false,
+                                feedback: "Runde Klammern werden für Methodenaufrufe genutzt – Arrays benötigen eckige Klammern []."
+                            },
+                            {
+                                code: "        klasse = teile[2]",
+                                correct: false,
+                                feedback: "Hier ist die Klammer zwar geschlossen, aber das Semikolon (;) am Zeilenende fehlt."
+                            }
+                        ]
+                    }
+                },
+                { line: 24, code: "        punkteLauf = Integer.valueOf(teile[3]);" },
+                { line: 25, code: "        punkteSprung = Integer.valueOf(teile[4]);" },
+                { line: 26, code: "        punkteWurf = Integer.valueOf(teile[5]);" },
+                { line: 27, code: "    }" },
+                { line: 28, code: "" },
+                { line: 29, code: "    /**" },
+                { line: 30, code: "     * Die der Disziplin entsprechende Punktzahl wurde gesetzt." },
+                { line: 31, code: "     */" },
+                { line: 32, code: "    public void setzePunkte(int pDisziplin, int pPunkte) {" },
+                {
+                    line: 33,
+                    code: "        switch (pDisziplin {",
+                    bug: {
+                        id: 4,
+                        compilerMsg: "Wettkampfkarte.java:33: error: ')' expected",
+                        hint: "In der Methode setzePunkte() ist die Klammerung der Fallunterscheidung unvollständig.",
+                        explanation: "Der Ausdruck nach 'switch' muss in runden Klammern stehen: switch (pDisziplin).",
+                        fixedCode: "        switch (pDisziplin) {",
+                        options: [
+                            {
+                                code: "        switch (pDisziplin) {",
+                                correct: true,
+                                feedback: "Genau! Die schließende runde Klammer ')' hat nach 'pDisziplin' gefehlt."
+                            },
+                            {
+                                code: "        switch pDisziplin {",
+                                correct: false,
+                                feedback: "In Java sind runde Klammern um den switch-Ausdruck zwingend vorgeschrieben."
+                            },
+                            {
+                                code: "        switch [pDisziplin] {",
+                                correct: false,
+                                feedback: "Eckige Klammern stehen für Arrays, nicht für Bedingungen oder switch-Anweisungen."
+                            }
+                        ]
+                    }
+                },
+                { line: 34, code: "            case LAUF:" },
+                { line: 35, code: "                punkteLauf = pPunkte;" },
+                { line: 36, code: "                break;" },
+                {
+                    line: 37,
+                    code: "            case SPRUNG",
+                    bug: {
+                        id: 5,
+                        compilerMsg: "Wettkampfkarte.java:37: error: ':' expected",
+                        hint: "Vergleiche die drei case-Marken innerhalb von setzePunkte().",
+                        explanation: "Jede case-Sprungmarke innerhalb eines switch-Blocks muss mit einem Doppelpunkt (:) enden.",
+                        fixedCode: "            case SPRUNG:",
+                        options: [
+                            {
+                                code: "            case SPRUNG:",
+                                correct: true,
+                                feedback: "Volltreffer! Nach 'case SPRUNG' hat genau dieser Doppelpunkt (:) gefehlt."
+                            },
+                            {
+                                code: "            case SPRUNG;",
+                                correct: false,
+                                feedback: "Nach einer case-Marke steht in Java kein Semikolon (;), sondern ein Doppelpunkt (:)."
+                            },
+                            {
+                                code: "            case \"SPRUNG\":",
+                                correct: false,
+                                feedback: "SPRUNG ist eine int-Konstante und kein String in Anführungszeichen."
+                            }
+                        ]
+                    }
+                },
+                { line: 38, code: "                punkteSprung = pPunkte;" },
+                { line: 39, code: "                break;" },
+                { line: 40, code: "            case WURF:" },
+                { line: 41, code: "                punkteWurf = pPunkte;" },
+                { line: 42, code: "                break;" },
+                { line: 43, code: "        }" },
+                { line: 44, code: "    }" },
+                { line: 45, code: "" },
+                { line: 46, code: "    /**" },
+                { line: 47, code: "     * Der Name wurde geliefert." },
+                { line: 48, code: "     */" },
+                { line: 49, code: "    public String gibName() {" },
+                { line: 50, code: "        return name;" },
+                { line: 51, code: "    }" },
+                { line: 52, code: "" },
+                { line: 53, code: "    /**" },
+                { line: 54, code: "     * Der Vorname wurde geliefert." },
+                { line: 55, code: "     */" },
+                { line: 56, code: "    public String gibVorname() {" },
+                {
+                    line: 57,
+                    code: "        return vorname",
+                    bug: {
+                        id: 6,
+                        compilerMsg: "Wettkampfkarte.java:57: error: ';' expected",
+                        hint: "Schau dir die Rückgabeanweisung in der Methode gibVorname() an.",
+                        explanation: "Die return-Anweisung 'return vorname' muss mit einem Semikolon (;) abgeschlossen werden.",
+                        fixedCode: "        return vorname;",
+                        options: [
+                            {
+                                code: "        return vorname;",
+                                correct: true,
+                                feedback: "Richtig! Das Semikolon (;) beendet die return-Anweisung korrekt."
+                            },
+                            {
+                                code: "        return \"vorname\";",
+                                correct: false,
+                                feedback: "Damit würde der feste Text \"vorname\" statt des Attributwerts zurückgegeben werden."
+                            },
+                            {
+                                code: "        vorname = return;",
+                                correct: false,
+                                feedback: "'return' ist ein Schlüsselwort zur Rückgabe und kein Wert, den man zuweisen kann."
+                            }
+                        ]
+                    }
+                },
+                { line: 58, code: "    }" },
+                { line: 59, code: "" },
+                { line: 60, code: "    /**" },
+                { line: 61, code: "     * Die Klasse wurde geliefert." },
+                { line: 62, code: "     */" },
+                { line: 63, code: "    public String gibKlasse() {" },
+                { line: 64, code: "        return klasse;" },
+                { line: 65, code: "    }" },
+                { line: 66, code: "" },
+                { line: 67, code: "    /**" },
+                { line: 68, code: "     * Die Punktzahl in der angegebenen Disziplin wurde geliefert." },
+                { line: 69, code: "     */" },
+                { line: 70, code: "    public int gibPunkte(int pDisziplin) {" },
+                { line: 71, code: "        switch (pDisziplin) {" },
+                { line: 72, code: "            case GESAMT:" },
+                { line: 73, code: "                return punkteLauf + punkteSprung + punkteWurf;" },
+                { line: 74, code: "            case LAUF:" },
+                { line: 75, code: "                return punkteLauf;" },
+                { line: 76, code: "            case SPRUNG:" },
+                { line: 77, code: "                return punkteSprung;" },
+                { line: 78, code: "            case WURF:" },
+                { line: 79, code: "                return punkteWurf;" },
+                { line: 80, code: "        }" },
+                { line: 81, code: "        return -1;" },
+                { line: 82, code: "    }" },
+                { line: 83, code: "" },
+                { line: 84, code: "    /**" },
+                { line: 85, code: "     * Eine Textform der Daten der Wettkampfkarte wurde geliefert." },
+                { line: 86, code: "     */" },
+                { line: 87, code: "    public String toString() { return name + \",\" + vorname + \",\" + klasse + \",\" + punkteLauf + \",\" + punkteSprung + \",\" + punkteWurf;" },
+                {
+                    line: 88,
+                    code: "    // [Ende der Methode toString() – anklicken zum Prüfen]",
+                    isPlaceholder: true,
+                    bug: {
+                        id: 7,
+                        compilerMsg: "Wettkampfkarte.java:88: error: '}' expected (Methode toString nicht geschlossen)",
+                        hint: "Prüfe die geschweiften Klammern am Ende der Methode toString() in Zeile 88.",
+                        explanation: "Jeder Methodenblock, der mit '{' geöffnet wurde, muss am Ende mit einer schließenden geschweiften Klammer '}' beendet werden.",
+                        fixedCode: "    }",
+                        options: [
+                            {
+                                code: "    }",
+                                correct: true,
+                                feedback: "Super! Mit '    }' wird der Block der Methode toString() sauber geschlossen."
+                            },
+                            {
+                                code: "    );",
+                                correct: false,
+                                feedback: "Methodenblöcke werden in Java mit geschweiften Klammern '}' und nicht mit ');' geschlossen."
+                            },
+                            {
+                                code: "    end;",
+                                correct: false,
+                                feedback: "In Java gibt es kein Schlüsselwort 'end' – Blöcke enden immer mit '}'."
+                            }
+                        ]
+                    }
+                },
+                {
+                    line: 89,
+                    code: "// [Dateiende der Klasse Wettkampfkarte – anklicken zum Prüfen]",
+                    isPlaceholder: true,
+                    bug: {
+                        id: 8,
+                        compilerMsg: "Wettkampfkarte.java:89: error: reached end of file while parsing ('}' expected)",
+                        hint: "Schau ganz ans Dateiende (Zeile 89): Wurde die Klasse Wettkampfkarte geschlossen?",
+                        explanation: "Die in Zeile 1 mit '{' geöffnete Klasse Wettkampfkarte muss ganz am Dateiende mit '}' geschlossen werden.",
+                        fixedCode: "}",
+                        options: [
+                            {
+                                code: "}",
+                                correct: true,
+                                feedback: "Klasse! Mit '}' am Dateiende ist auch die Klassendefinition von Wettkampfkarte geschlossen."
+                            },
+                            {
+                                code: "};",
+                                correct: false,
+                                feedback: "Nach der schließenden geschweiften Klammer einer Java-Klasse steht kein Semikolon."
+                            },
+                            {
+                                code: ")",
+                                correct: false,
+                                feedback: "Eine Klassendefinition wird mit geschweiften Klammern { } umschlossen, nicht mit runden."
+                            }
+                        ]
+                    }
+                }
+            ];
+
+            // Spielzustand
+            let linesState = [];
+            let solvedBugIds = new Set();
+            let mistakesCount = 0;
+            let activeLineObj = null;
+            let hintedLineNum = null;
+            let timerSeconds = 0;
+            let timerId = null;
+            let isRunning = false;
+            let isFinished = false;
+
+            // DOM-Referenzen
+            const editorBody = document.getElementById("editor-body");
+            const trackerCountEl = document.getElementById("tracker-count");
+            const progressFillEl = document.getElementById("progress-fill");
+            const bugPillsEl = document.getElementById("bug-pills");
+            const timerValueEl = document.getElementById("timer-value");
+            const mistakesCountEl = document.getElementById("mistakes-count");
+            const compilerStatusEl = document.getElementById("compiler-status");
+            const hintBannerEl = document.getElementById("hint-banner");
+            const hintTextEl = document.getElementById("hint-text");
+            const toastContainerEl = document.getElementById("toast-container");
+
+            const bugModalEl = document.getElementById("bug-modal");
+            const modalBugTagEl = document.getElementById("modal-bug-tag");
+            const modalCompilerMsgEl = document.getElementById("modal-compiler-msg");
+            const modalBuggyPreviewEl = document.getElementById("modal-buggy-preview");
+            const modalOptionsEl = document.getElementById("modal-options");
+            const modalFeedbackEl = document.getElementById("modal-feedback");
+            const modalFooterEl = document.getElementById("modal-footer");
+
+            const victoryModalEl = document.getElementById("victory-modal");
+            const victoryTimeEl = document.getElementById("victory-time");
+            const victoryMistakesEl = document.getElementById("victory-mistakes");
+            const victorySummaryEl = document.getElementById("victory-summary");
+
+            function escapeHtml(str) {
+                return str
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;");
+            }
+
+            function formatTime(sec) {
+                const m = String(Math.floor(sec / 60)).padStart(2, "0");
+                const s = String(sec % 60).padStart(2, "0");
+                return m + ":" + s;
+            }
+
+            function startTimerIfNeeded() {
+                if (isRunning || isFinished) return;
+                isRunning = true;
+                timerId = setInterval(function () {
+                    timerSeconds++;
+                    timerValueEl.textContent = formatTime(timerSeconds);
+                }, 1000);
+            }
+
+            // Sicheres Syntax-Highlighting ohne Escape-Konflikte
+            function highlightJava(rawCode, isPlaceholder) {
+                if (!rawCode) return "&nbsp;";
+
+                const escaped = escapeHtml(rawCode);
+
+                if (isPlaceholder) {
+                    return '<span class="tok-placeholder">' + escaped + "</span>";
+                }
+
+                if (/^\s*(\/\*\*|\*|\/\*|\/\/)/.test(escaped)) {
+                    return '<span class="tok-com">' + escaped + "</span>";
+                }
+
+                // String-Literale schützen
+                const stringTokens = [];
+                let processed = escaped.replace(/&quot;(.*?)&quot;/g, function (match) {
+                    const idx = stringTokens.length;
+                    stringTokens.push('<span class="tok-str">' + match + "</span>");
+                    return "___STR_" + idx + "___";
+                });
+
+                processed = processed.replace(
+                    /\b(public|private|class|static|final|void|return|switch|case|break)\b/g,
+                    '<span class="tok-kw">$1</span>'
+                );
+
+                processed = processed.replace(
+                    /\b(int|String|Integer)\b/g,
+                    '<span class="tok-type">$1</span>'
+                );
+
+                processed = processed.replace(
+                    /\b(LAUF|SPRUNG|WURF|GESAMT)\b/g,
+                    '<span class="tok-const">$1</span>'
+                );
+
+                processed = processed.replace(
+                    /\b(\d+)\b/g,
+                    '<span class="tok-num">$1</span>'
+                );
+
+                processed = processed.replace(/___STR_(\d+)___/g, function (_, idx) {
+                    return stringTokens[Number(idx)];
+                });
+
+                return processed;
+            }
+
+            function renderBugPills() {
+                bugPillsEl.innerHTML = "";
+                for (let i = 1; i <= 8; i++) {
+                    const pill = document.createElement("span");
+                    const isSolved = solvedBugIds.has(i);
+                    pill.className = "bug-pill" + (isSolved ? " solved" : "");
+                    pill.textContent = isSolved ? "✓ #" + i : "#" + i;
+                    pill.title = isSolved ? "Bug #" + i + " behoben" : "Bug #" + i + " noch offen";
+                    bugPillsEl.appendChild(pill);
+                }
+            }
+
+            function updateTracker() {
+                const found = solvedBugIds.size;
+                const remaining = 8 - found;
+                trackerCountEl.textContent = found + " / 8";
+                progressFillEl.style.width = ((found / 8) * 100) + "%";
+                mistakesCountEl.textContent = String(mistakesCount);
+
+                if (remaining === 0) {
+                    compilerStatusEl.textContent = "Kompilierbar (0 Fehler)";
+                    compilerStatusEl.classList.add("clean");
+                } else {
+                    compilerStatusEl.textContent = remaining + " Compilerfehler";
+                    compilerStatusEl.classList.remove("clean");
+                }
+
+                renderBugPills();
+            }
+
+            function renderEditor() {
+                editorBody.innerHTML = "";
+
+                linesState.forEach(function (item) {
+                    const isFixed = Boolean(item.bug && solvedBugIds.has(item.bug.id));
+                    const isHinted = Boolean(hintedLineNum === item.line && !isFixed);
+
+                    const row = document.createElement("div");
+                    row.className = "code-row" + (isFixed ? " fixed" : "") + (isHinted ? " hinted" : "");
+                    row.dataset.line = String(item.line);
+
+                    const lineNumSpan = document.createElement("span");
+                    lineNumSpan.className = "line-number";
+                    lineNumSpan.textContent = String(item.line);
+
+                    const codeSpan = document.createElement("span");
+                    codeSpan.className = "code-content";
+                    codeSpan.innerHTML = highlightJava(item.code, Boolean(item.isPlaceholder && !isFixed));
+
+                    row.appendChild(lineNumSpan);
+                    row.appendChild(codeSpan);
+
+                    if (isFixed) {
+                        const badge = document.createElement("span");
+                        badge.className = "fixed-badge";
+                        badge.textContent = "✓ Behoben";
+                        row.appendChild(badge);
+                    }
+
+                    editorBody.appendChild(row);
+                });
+            }
+
+            function showToast(message, variant) {
+                const toast = document.createElement("div");
+                toast.className = "toast " + (variant || "info");
+                toast.textContent = message;
+                toastContainerEl.appendChild(toast);
+
+                setTimeout(function () {
+                    toast.style.opacity = "0";
+                    toast.style.transform = "translateY(6px)";
+                    setTimeout(function () {
+                        if (toast.parentNode) {
+                            toast.parentNode.removeChild(toast);
+                        }
+                    }, 260);
+                }, 2200);
+            }
+
+            function handleRowClick(lineNum, rowElement) {
+                startTimerIfNeeded();
+
+                const item = linesState.find(function (l) {
+                    return l.line === lineNum;
+                });
+                if (!item) return;
+
+                if (item.bug && !solvedBugIds.has(item.bug.id)) {
+                    openBugModal(item);
+                    return;
+                }
+
+                if (item.bug && solvedBugIds.has(item.bug.id)) {
+                    showToast("Zeile " + lineNum + " wurde bereits erfolgreich korrigiert!", "success");
+                    return;
+                }
+
+                mistakesCount++;
+                mistakesCountEl.textContent = String(mistakesCount);
+
+                rowElement.classList.remove("shake");
+                void rowElement.offsetWidth;
+                rowElement.classList.add("shake");
+
+                showToast("Zeile " + lineNum + ": Diese Zeile ist syntaktisch korrekt!", "info");
+            }
+
+            function openBugModal(item) {
+                activeLineObj = item;
+                modalBugTagEl.textContent = "Bug #" + item.bug.id + " • Zeile " + item.line;
+                modalCompilerMsgEl.textContent = item.bug.compilerMsg;
+                modalBuggyPreviewEl.textContent = item.code;
+
+                modalFeedbackEl.className = "modal-feedback";
+                modalFeedbackEl.textContent = "";
+
+                modalFooterEl.innerHTML = "";
+                const cancelBtn = document.createElement("button");
+                cancelBtn.type = "button";
+                cancelBtn.className = "btn btn-secondary";
+                cancelBtn.textContent = "Abbrechen";
+                cancelBtn.addEventListener("click", closeBugModal);
+                modalFooterEl.appendChild(cancelBtn);
+
+                modalOptionsEl.innerHTML = "";
+                const letters = ["A", "B", "C", "D"];
+
+                item.bug.options.forEach(function (opt, idx) {
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "option-btn";
+
+                    const letterEl = document.createElement("span");
+                    letterEl.className = "option-letter";
+                    letterEl.textContent = letters[idx];
+
+                    const codeEl = document.createElement("code");
+                    codeEl.className = "option-code";
+                    codeEl.textContent = opt.code.trim();
+
+                    btn.appendChild(letterEl);
+                    btn.appendChild(codeEl);
+
+                    btn.addEventListener("click", function () {
+                        handleOptionSelect(opt, btn);
+                    });
+
+                    modalOptionsEl.appendChild(btn);
+                });
+
+                bugModalEl.classList.add("open");
+            }
+
+            function closeBugModal() {
+                bugModalEl.classList.remove("open");
+                activeLineObj = null;
+            }
+
+            function handleOptionSelect(option, btnElement) {
+                if (!activeLineObj) return;
+
+                if (option.correct) {
+                    const allOptBtns = modalOptionsEl.querySelectorAll(".option-btn");
+                    allOptBtns.forEach(function (b) {
+                        b.disabled = true;
+                    });
+
+                    btnElement.classList.add("correct");
+
+                    activeLineObj.code = activeLineObj.bug.fixedCode;
+                    activeLineObj.isPlaceholder = false;
+                    solvedBugIds.add(activeLineObj.bug.id);
+
+                    if (hintedLineNum === activeLineObj.line) {
+                        hintedLineNum = null;
+                        hintBannerEl.classList.remove("visible");
+                    }
+
+                    modalFeedbackEl.className = "modal-feedback visible success";
+                    modalFeedbackEl.innerHTML =
+                        "<strong>✓ " + escapeHtml(option.feedback) + "</strong><br>" +
+                        "<span>Erklärung: " + escapeHtml(activeLineObj.bug.explanation) + "</span>";
+
+                    updateTracker();
+                    renderEditor();
+
+                    modalFooterEl.innerHTML = "";
+                    const nextBtn = document.createElement("button");
+                    nextBtn.type = "button";
+                    nextBtn.className = "btn btn-primary";
+                    nextBtn.textContent = solvedBugIds.size === 8 ? "Auswertung ansehen →" : "Weiter suchen →";
+                    nextBtn.addEventListener("click", function () {
+                        const finishedAll = solvedBugIds.size === 8;
+                        closeBugModal();
+                        if (finishedAll) {
+                            openVictoryModal();
+                        }
+                    });
+                    modalFooterEl.appendChild(nextBtn);
+                } else {
+                    mistakesCount++;
+                    mistakesCountEl.textContent = String(mistakesCount);
+                    btnElement.classList.add("wrong");
+                    btnElement.disabled = true;
+
+                    modalFeedbackEl.className = "modal-feedback visible error";
+                    modalFeedbackEl.innerHTML =
+                        "<strong>✕ Leider falsch:</strong> " + escapeHtml(option.feedback);
+                }
+            }
+
+            function openVictoryModal() {
+                isFinished = true;
+                clearInterval(timerId);
+
+                victoryTimeEl.textContent = formatTime(timerSeconds);
+                victoryMistakesEl.textContent = String(mistakesCount);
+                victorySummaryEl.innerHTML = "";
+
+                linesState.filter(function (l) {
+                    return Boolean(l.bug);
+                }).forEach(function (item) {
+                    const card = document.createElement("div");
+                    card.className = "summary-item";
+
+                    const top = document.createElement("div");
+                    top.className = "summary-item-top";
+
+                    const title = document.createElement("span");
+                    title.className = "summary-item-title";
+                    title.textContent = "Bug #" + item.bug.id + " • Zeile " + item.line;
+
+                    const code = document.createElement("code");
+                    code.className = "summary-item-code";
+                    code.textContent = item.bug.fixedCode.trim();
+
+                    const desc = document.createElement("div");
+                    desc.style.color = "#c9d1d9";
+                    desc.textContent = item.bug.explanation;
+
+                    top.appendChild(title);
+                    top.appendChild(code);
+                    card.appendChild(top);
+                    card.appendChild(desc);
+                    victorySummaryEl.appendChild(card);
+                });
+
+                victoryModalEl.classList.add("open");
+            }
+
+            function showNextHint() {
+                startTimerIfNeeded();
+                const nextUnsolved = linesState.find(function (l) {
+                    return Boolean(l.bug && !solvedBugIds.has(l.bug.id));
+                });
+                if (!nextUnsolved) return;
+
+                hintedLineNum = nextUnsolved.line;
+                hintTextEl.textContent =
+                    "Tipp zu Bug #" + nextUnsolved.bug.id + ": " + nextUnsolved.bug.hint +
+                    " (Die verdächtige Zeile wurde gelb markiert.)";
+                hintBannerEl.classList.add("visible");
+
+                renderEditor();
+
+                const targetRow = editorBody.querySelector('[data-line="' + nextUnsolved.line + '"]');
+                if (targetRow) {
+                    targetRow.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            }
+
+            function resetGame() {
+                clearInterval(timerId);
+                timerSeconds = 0;
+                isRunning = false;
+                isFinished = false;
+                solvedBugIds = new Set();
+                mistakesCount = 0;
+                activeLineObj = null;
+                hintedLineNum = null;
+
+                linesState = INITIAL_LINES.map(function (entry) {
+                    return {
+                        line: entry.line,
+                        code: entry.code,
+                        isPlaceholder: Boolean(entry.isPlaceholder),
+                        bug: entry.bug ? {
+                            id: entry.bug.id,
+                            compilerMsg: entry.bug.compilerMsg,
+                            hint: entry.bug.hint,
+                            explanation: entry.bug.explanation,
+                            fixedCode: entry.bug.fixedCode,
+                            options: entry.bug.options.slice()
+                        } : null
+                    };
+                });
+
+                timerValueEl.textContent = "00:00";
+                hintBannerEl.classList.remove("visible");
+                bugModalEl.classList.remove("open");
+                victoryModalEl.classList.remove("open");
+
+                updateTracker();
+                renderEditor();
+            }
+
+            // Event Delegation für Klicks auf Codezeilen
+            editorBody.addEventListener("click", function (event) {
+                const row = event.target.closest(".code-row");
+                if (!row) return;
+                const lineNum = Number(row.dataset.line);
+                if (!Number.isNaN(lineNum)) {
+                    handleRowClick(lineNum, row);
+                }
+            });
+
+            // Saubere Event-Listener für Steuerungselemente
+            document.getElementById("btn-hint").addEventListener("click", showNextHint);
+            document.getElementById("btn-restart").addEventListener("click", resetGame);
+            document.getElementById("btn-close-hint").addEventListener("click", function () {
+                hintBannerEl.classList.remove("visible");
+                hintedLineNum = null;
+                renderEditor();
+            });
+            document.getElementById("btn-modal-close").addEventListener("click", closeBugModal);
+            document.getElementById("btn-modal-cancel").addEventListener("click", closeBugModal);
+            document.getElementById("btn-victory-view").addEventListener("click", function () {
+                victoryModalEl.classList.remove("open");
+            });
+            document.getElementById("btn-victory-restart").addEventListener("click", resetGame);
+
+            // Schließen der Modals per ESC-Taste
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape") {
+                    if (bugModalEl.classList.contains("open")) {
+                        closeBugModal();
+                    } else if (victoryModalEl.classList.contains("open")) {
+                        victoryModalEl.classList.remove("open");
+                    }
+                }
+            });
+
+            // Spiel initialisieren
+            resetGame();
+        })();
+    </script>
+</body>
+</html>
